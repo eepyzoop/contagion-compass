@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: contagion
+      POSTGRES_PASSWORD: contagion
+      POSTGRES_DB: contagion_compass
+    ports:
+      - "5432:5432"
+    volumes:
+      - contagion_pg_data:/var/lib/postgresql/data
+
+volumes:
+  contagion_pg_data:
