@@ -35,5 +35,16 @@ CREATE TABLE IF NOT EXISTS baselines (
     UNIQUE (disease, region, metric, resolution, period_index)
 );
 
--- decision_log (the agent's audit trail) is added in Phase 2, once there's
--- an actual decision-maker writing to it.
+CREATE TABLE IF NOT EXISTS decision_log (
+    id              BIGSERIAL PRIMARY KEY,
+    disease         TEXT NOT NULL,
+    region          TEXT NOT NULL,
+    metric          TEXT NOT NULL,
+    period_index    INTEGER NOT NULL,
+    flagged         BOOLEAN NOT NULL,
+    confidence      TEXT NOT NULL,          -- 'low' | 'medium' | 'high'
+    reasoning       TEXT NOT NULL,
+    tool_calls_made INTEGER NOT NULL,
+    llm_provider    TEXT NOT NULL,          -- 'ollama' | 'gemini'
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
