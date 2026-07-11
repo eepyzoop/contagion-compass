@@ -34,6 +34,17 @@ CITY_NAME = "Rio de Janeiro"
 REGION = "BRAZIL-RIO_DE_JANEIRO"
 COUNTRY_ISO3 = "BRA"
 
+# Other major cities the Phase 3 agent can cross-reference for spatial
+# context ("is this just Rio, or showing up elsewhere too?"). Same
+# alertcity endpoint, just a different geocode -- see context.md's
+# "knock-on effects of switching to city-level data".
+REGION_GEOCODES = {
+    REGION: CITY_GEOCODE,
+    "BRAZIL-SAO_PAULO": 3550308,
+    "BRAZIL-BELO_HORIZONTE": 3106200,
+    "BRAZIL-BRASILIA": 5300108,
+}
+
 DISEASE = "dengue"
 METRIC = "estimated_cases"
 SOURCE = "InfoDengue"
@@ -100,6 +111,35 @@ def fetch_latest_week(geocode: int = CITY_GEOCODE) -> pd.DataFrame:
     today = pd.Timestamp.today()
     df = _fetch(geocode, today.year - 1, today.year)  # covers year boundary
     return _to_raw_readings_shape(df).tail(1).reset_index(drop=True)
+
+
+def fetch_latest_week_raw(geocode: int) -> dict:
+    """
+    Live pull of the most recent InfoDengue week for a city, keeping fields
+    the raw_readings pipeline discards (climate, Rt, InfoDengue's own alert
+    level, confidence interval on the estimate). Used by the Phase 3 agent's
+    cross-referencing tools directly -- not persisted to the DB, since these
+    are read live at decision time rather than baselined.
+    """
+    today = pd.Timestamp.today()
+    df = _fetch(geocode, today.year - 1, today.year)
+    if df.empty:
+        return {}
+    row = df.sort_values("data_iniSE").iloc[-1]
+
+    def _num(field):
+        val = row.get(field)
+        return float(val) if pd.notna(val) else None
+
+    return {
+        "period_start": str(pd.to_datetime(row["data_iniSE"], unit="ms").date()),
+        "estimated_cases": _num("casos_est"),
+        "estimated_cases_range": [_num("casos_est_min"), _num("casos_est_max")],
+        "temp_avg_c": _num("tempmed"),
+        "humidity_avg_pct": _num("umidmed"),
+        "rt": _num("Rt"),
+        "alert_level": int(row["nivel"]) if pd.notna(row.get("nivel")) else None,  # 1-4 scale, see docstring
+    }
 
 
 if __name__ == "__main__":

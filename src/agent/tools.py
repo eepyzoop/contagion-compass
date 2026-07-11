@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from src.analysis.stats import add_period_index
+from src.ingest.download_infodengue import REGION_GEOCODES, fetch_latest_week_raw
 
 
 def check_status(engine, disease: str, region: str, metric: str) -> dict:
@@ -88,7 +89,29 @@ def get_history(engine, disease: str, region: str, metric: str, limit: int = 12)
     }
 
 
-TOOL_IMPLS = {"check_status": check_status, "get_history": get_history}
+def check_climate_and_alert(engine, region: str) -> dict:
+    """Live climate/Rt/InfoDengue-alert-level context for the region under
+    review, for judging whether a spike has a plausible climate-driven
+    explanation. Only supported for InfoDengue-backed regions."""
+    geocode = REGION_GEOCODES.get(region)
+    if geocode is None:
+        return {"error": f"no InfoDengue geocode mapping for region {region}"}
+    return fetch_latest_week_raw(geocode)
+
+
+def check_other_cities(engine) -> dict:
+    """Live latest-week snapshot for other major Brazilian cities InfoDengue
+    covers, for judging whether an anomaly is isolated to one city or
+    showing up more broadly."""
+    return {region: fetch_latest_week_raw(geocode) for region, geocode in REGION_GEOCODES.items()}
+
+
+TOOL_IMPLS = {
+    "check_status": check_status,
+    "get_history": get_history,
+    "check_climate_and_alert": check_climate_and_alert,
+    "check_other_cities": check_other_cities,
+}
 
 TOOL_SCHEMAS = [
     {
@@ -128,6 +151,35 @@ TOOL_SCHEMAS = [
                 },
                 "required": ["disease", "region", "metric"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_climate_and_alert",
+            "description": (
+                "Get live climate (temperature, humidity), Rt, and InfoDengue's "
+                "own alert level (1-4) for the region under review -- use this "
+                "if a reading looks anomalous and you want a second, "
+                "independently-computed signal or a plausible climate explanation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"region": {"type": "string"}},
+                "required": ["region"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_other_cities",
+            "description": (
+                "Get a live latest-week snapshot for other major Brazilian cities "
+                "InfoDengue covers -- use this to check whether an anomaly is "
+                "isolated to one region or part of a broader regional pattern."
+            ),
+            "parameters": {"type": "object", "properties": {}},
         },
     },
     {
