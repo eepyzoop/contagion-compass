@@ -6,3 +6,4 @@ venv/
 data/raw/*.csv
 data/raw/*.zip
 *.log
+reports/

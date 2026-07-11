@@ -12,8 +12,11 @@ Usage:
 """
 
 from src.agent.reasoner import review
+from src.agent.tools import check_status
+from src.db.connection import get_engine
 from src.db.load import load_readings
 from src.ingest.download_infodengue import DISEASE, METRIC, REGION, fetch_latest_week
+from src.report import save as save_report
 
 
 def main():
@@ -30,6 +33,10 @@ def main():
     print(f"\nProvider: {result['llm_provider']} | tool calls made: {result['tool_calls_made']}")
     print(f"Verdict: {'FLAGGED' if result['flagged'] else 'not flagged'} (confidence: {result['confidence']})")
     print(f"Reasoning: {result['reasoning']}")
+
+    status = check_status(get_engine(), DISEASE, REGION, METRIC)
+    report_path = save_report(DISEASE, REGION, METRIC, result, status)
+    print(f"\nReport saved: {report_path}")
 
 
 if __name__ == "__main__":
