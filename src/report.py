@@ -8,7 +8,10 @@ writes it to reports/, gitignored like data/raw since these regenerate.
 import os
 from datetime import datetime, timezone
 
+import boto3
+
 REPORTS_DIR = "reports"
+S3_BUCKET = os.environ.get("S3_BUCKET")
 
 
 def render(disease: str, region: str, metric: str, result: dict, status: dict) -> str:
@@ -51,3 +54,13 @@ def save(disease: str, region: str, metric: str, result: dict, status: dict) -> 
     with open(path, "w", encoding="utf-8") as f:
         f.write(render(disease, region, metric, result, status))
     return path
+
+
+def upload_to_s3(path: str) -> str | None:
+    """Uploads a saved report to S3 if S3_BUCKET is set; returns the s3:// URI,
+    or None if S3 isn't configured (local-only dev stays free/no-AWS-required)."""
+    if not S3_BUCKET:
+        return None
+    key = f"reports/{os.path.basename(path)}"
+    boto3.client("s3").upload_file(path, S3_BUCKET, key)
+    return f"s3://{S3_BUCKET}/{key}"

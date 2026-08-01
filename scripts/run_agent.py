@@ -17,6 +17,7 @@ from src.db.connection import get_engine
 from src.db.load import load_readings
 from src.ingest.download_infodengue import DISEASE, METRIC, REGION, fetch_latest_week
 from src.report import save as save_report
+from src.report import upload_to_s3
 
 
 def main():
@@ -37,6 +38,10 @@ def main():
     status = check_status(get_engine(), DISEASE, REGION, METRIC)
     report_path = save_report(DISEASE, REGION, METRIC, result, status)
     print(f"\nReport saved: {report_path}")
+
+    s3_uri = upload_to_s3(report_path)
+    if s3_uri:
+        print(f"Uploaded to {s3_uri}")
 
 
 if __name__ == "__main__":
