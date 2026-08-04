@@ -16,7 +16,10 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
 def get_engine():
-    return create_engine(DATABASE_URL)
+    # pool_pre_ping: a long LLM turn can leave a pooled connection idle long
+    # enough for RDS/network NAT to drop it; this pings and transparently
+    # reconnects instead of raising on the next query.
+    return create_engine(DATABASE_URL, pool_pre_ping=True)
 
 
 def init_schema(engine=None):
