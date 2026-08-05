@@ -27,6 +27,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       S3_BUCKET: ${S3_BUCKET:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
       - ./reports:/app/reports
       - ~/.aws:/root/.aws:ro

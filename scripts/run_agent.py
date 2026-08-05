@@ -12,10 +12,11 @@ Usage:
 """
 
 from src.agent.reasoner import review
-from src.agent.tools import check_status
+from src.agent.tools import check_status, get_history
 from src.db.connection import get_engine
 from src.db.load import load_readings
 from src.ingest.download_infodengue import DISEASE, METRIC, REGION, fetch_latest_week
+from src.notify import notify_slack
 from src.report import save as save_report
 from src.report import upload_to_s3
 
@@ -35,13 +36,21 @@ def main():
     print(f"Verdict: {'FLAGGED' if result['flagged'] else 'not flagged'} (confidence: {result['confidence']})")
     print(f"Reasoning: {result['reasoning']}")
 
-    status = check_status(get_engine(), DISEASE, REGION, METRIC)
-    report_path = save_report(DISEASE, REGION, METRIC, result, status)
+    engine = get_engine()
+    status = check_status(engine, DISEASE, REGION, METRIC)
+    history = get_history(engine, DISEASE, REGION, METRIC)["readings"]
+    report_path, chart_path = save_report(DISEASE, REGION, METRIC, result, status, history=history)
     print(f"\nReport saved: {report_path}")
 
-    s3_uri = upload_to_s3(report_path)
-    if s3_uri:
-        print(f"Uploaded to {s3_uri}")
+    for path in (report_path, chart_path):
+        if not path:
+            continue
+        s3_uri = upload_to_s3(path)
+        if s3_uri:
+            print(f"Uploaded to {s3_uri}")
+
+    if notify_slack(DISEASE, REGION, METRIC, result, report_path):
+        print("Slack alert sent.")
 
 
 if __name__ == "__main__":
