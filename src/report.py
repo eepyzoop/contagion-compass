@@ -5,6 +5,7 @@ pure string-builder (no DB/LLM) so it's testable in isolation; `save()`
 writes it to reports/, gitignored like data/raw since these regenerate.
 """
 
+import json
 import os
 from datetime import datetime, timezone
 
@@ -111,4 +112,45 @@ def upload_to_s3(path: str) -> str | None:
         return None
     key = f"reports/{os.path.basename(path)}"
     boto3.client("s3").upload_file(path, S3_BUCKET, key)
+    return f"s3://{S3_BUCKET}/{key}"
+
+
+def upload_manifest(
+    disease: str,
+    region: str,
+    metric: str,
+    result: dict,
+    status: dict,
+    report_path: str,
+    chart_path: str | None = None,
+) -> str | None:
+    """Writes a JSON summary of this run to S3 alongside the report/chart --
+    the dashboard's only data source, so it never needs direct DB access.
+    No-ops (returns None) if S3_BUCKET isn't set, same as upload_to_s3()."""
+    if not S3_BUCKET:
+        return None
+    manifest = {
+        "disease": disease,
+        "region": region,
+        "metric": metric,
+        "period_start": status.get("period_start"),
+        "period_index": status.get("period_index"),
+        "value": status.get("value"),
+        "baseline_mean": status.get("baseline_mean"),
+        "baseline_stddev": status.get("baseline_stddev"),
+        "z_score": status.get("z_score"),
+        "flagged": result["flagged"],
+        "confidence": result["confidence"],
+        "reasoning": result["reasoning"],
+        "tool_calls_made": result["tool_calls_made"],
+        "llm_provider": result["llm_provider"],
+        "report_key": f"reports/{os.path.basename(report_path)}",
+        "chart_key": f"reports/{os.path.basename(chart_path)}" if chart_path else None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    base = os.path.splitext(os.path.basename(report_path))[0]
+    key = f"reports/{base}.json"
+    boto3.client("s3").put_object(
+        Bucket=S3_BUCKET, Key=key, Body=json.dumps(manifest).encode(), ContentType="application/json"
+    )
     return f"s3://{S3_BUCKET}/{key}"

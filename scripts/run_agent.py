@@ -18,7 +18,7 @@ from src.db.load import load_readings
 from src.ingest.download_infodengue import DISEASE, METRIC, REGION, fetch_latest_week
 from src.notify import notify_slack
 from src.report import save as save_report
-from src.report import upload_to_s3
+from src.report import upload_manifest, upload_to_s3
 
 
 def main():
@@ -48,6 +48,10 @@ def main():
         s3_uri = upload_to_s3(path)
         if s3_uri:
             print(f"Uploaded to {s3_uri}")
+
+    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_path, chart_path)
+    if manifest_uri:
+        print(f"Uploaded to {manifest_uri}")
 
     if notify_slack(DISEASE, REGION, METRIC, result, report_path):
         print("Slack alert sent.")

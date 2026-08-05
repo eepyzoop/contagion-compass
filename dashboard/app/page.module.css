@@ -1,0 +1,92 @@
+.page {
+  min-height: 100svh;
+  padding: 2rem 1.5rem 4rem;
+  font-family: var(--font-geist-sans);
+  color: #111;
+  background: #fafafa;
+}
+
+.main {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  padding: 1.25rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.badgeFlagged,
+.badgeOk {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.badgeFlagged {
+  background: #ffe1e1;
+  color: #b00020;
+}
+
+.badgeOk {
+  background: #e3f5e6;
+  color: #1a7f37;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.chart {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    color: #ededed;
+    background: #000;
+  }
+
+  .card {
+    background: #0a0a0a;
+    border-color: #333;
+  }
+
+  .badgeFlagged {
+    background: #3a1414;
+    color: #ff6b6b;
+  }
+
+  .badgeOk {
+    background: #12321a;
+    color: #4ade80;
+  }
+
+  .muted {
+    color: #999;
+  }
+}
