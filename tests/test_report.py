@@ -63,6 +63,19 @@ def test_render_omits_chart_when_absent():
     assert "![trend chart]" not in md
 
 
+def test_render_includes_second_opinion_when_given():
+    opinion = {"agree": False, "notes": "Looks like normal seasonal variation to me.", "llm_provider": "gemini"}
+    md = render("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, opinion=opinion)
+    assert "Second opinion" in md
+    assert "Disagrees" in md
+    assert opinion["notes"] in md
+
+
+def test_render_omits_second_opinion_when_absent():
+    md = render("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS)
+    assert "Second opinion" not in md
+
+
 def test_save_writes_chart_when_history_given():
     tmpdir = tempfile.mkdtemp()
     prev_dir = os.getcwd()
@@ -125,6 +138,34 @@ def test_upload_manifest_writes_json_when_bucket_set():
         assert body["z_score"] == 4.36
         assert body["report_key"] == "reports/x.md"
         assert body["chart_key"] == "reports/x.png"
+        assert body["reviewer_agree"] is None
+        assert body["reviewer_notes"] is None
+    finally:
+        report.boto3.client = prev_client
+        report.S3_BUCKET = None
+
+
+def test_upload_manifest_includes_reviewer_opinion_when_given():
+    report.S3_BUCKET = "test-bucket"
+    fake_client = FakeS3Client()
+    prev_client = report.boto3.client
+    report.boto3.client = lambda name: fake_client
+    try:
+        opinion = {"agree": True, "notes": "Consistent with the data.", "llm_provider": "gemini"}
+        report.upload_manifest(
+            "dengue",
+            "BRAZIL-RIO_DE_JANEIRO",
+            "estimated_cases",
+            RESULT,
+            STATUS,
+            "reports/x.md",
+            "reports/x.png",
+            opinion=opinion,
+        )
+        body = json.loads(fake_client.put_calls[0]["Body"])
+        assert body["reviewer_agree"] is True
+        assert body["reviewer_notes"] == "Consistent with the data."
+        assert body["reviewer_provider"] == "gemini"
     finally:
         report.boto3.client = prev_client
         report.S3_BUCKET = None
@@ -135,8 +176,11 @@ if __name__ == "__main__":
     test_render_not_flagged_says_so()
     test_render_embeds_chart_when_given()
     test_render_omits_chart_when_absent()
+    test_render_includes_second_opinion_when_given()
+    test_render_omits_second_opinion_when_absent()
     test_save_writes_chart_when_history_given()
     test_save_skips_chart_without_history()
     test_upload_manifest_skips_without_bucket()
     test_upload_manifest_writes_json_when_bucket_set()
+    test_upload_manifest_includes_reviewer_opinion_when_given()
     print("ok")

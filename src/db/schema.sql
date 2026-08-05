@@ -46,5 +46,16 @@ CREATE TABLE IF NOT EXISTS decision_log (
     reasoning       TEXT NOT NULL,
     tool_calls_made INTEGER NOT NULL,
     llm_provider    TEXT NOT NULL,          -- 'ollama' | 'gemini'
+    reviewer_agree    BOOLEAN,              -- NULL until the reviewer step runs (or if it fails)
+    reviewer_notes    TEXT,
+    reviewer_provider TEXT,                 -- 'ollama' | 'gemini' -- independent pick from llm_provider
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- decision_log already existed before the reviewer columns were added --
+-- CREATE TABLE IF NOT EXISTS above is a no-op against an existing table,
+-- so the new columns need an explicit migration for already-provisioned
+-- databases (local Docker, RDS). Harmless no-op against a fresh table too.
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_agree BOOLEAN;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_notes TEXT;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_provider TEXT;

@@ -26,10 +26,13 @@ def render(
     result: dict,
     status: dict,
     chart_filename: str | None = None,
+    opinion: dict | None = None,
 ) -> str:
     """result: output of src.agent.reasoner.review(). status: output of
     src.agent.tools.check_status() for the same disease/region/metric --
-    reused rather than requeried, since review() already looked it up."""
+    reused rather than requeried, since review() already looked it up.
+    opinion: output of src.agent.reviewer.review(), if a second opinion
+    was gathered."""
     verdict = "FLAGGED" if result["flagged"] else "Not flagged"
     lines = [
         f"# Surveillance report: {disease} / {region} / {metric}",
@@ -53,6 +56,19 @@ def render(
         "## Agent's reasoning",
         "",
         result["reasoning"],
+    ]
+    if opinion is not None:
+        agree = opinion.get("agree")
+        agree_text = "Agrees" if agree else "Disagrees" if agree is False else "No opinion returned"
+        lines += [
+            "",
+            "## Second opinion",
+            "",
+            f"**{agree_text}** with the verdict above (via {opinion.get('llm_provider', 'unknown')}).",
+            "",
+            opinion.get("notes", ""),
+        ]
+    lines += [
         "",
         "---",
         f"*Investigated with {result['tool_calls_made']} tool call(s), "
@@ -85,6 +101,7 @@ def save(
     result: dict,
     status: dict,
     history: list[dict] | None = None,
+    opinion: dict | None = None,
 ) -> tuple[str, str | None]:
     """Writes the rendered report (and a trend chart, if history is given) to
     reports/. Returns (report_path, chart_path_or_None)."""
@@ -101,7 +118,7 @@ def save(
 
     report_path = os.path.join(REPORTS_DIR, f"{base}.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(render(disease, region, metric, result, status, chart_filename))
+        f.write(render(disease, region, metric, result, status, chart_filename, opinion))
     return report_path, chart_path
 
 
@@ -123,6 +140,7 @@ def upload_manifest(
     status: dict,
     report_path: str,
     chart_path: str | None = None,
+    opinion: dict | None = None,
 ) -> str | None:
     """Writes a JSON summary of this run to S3 alongside the report/chart --
     the dashboard's only data source, so it never needs direct DB access.
@@ -144,6 +162,9 @@ def upload_manifest(
         "reasoning": result["reasoning"],
         "tool_calls_made": result["tool_calls_made"],
         "llm_provider": result["llm_provider"],
+        "reviewer_agree": opinion.get("agree") if opinion else None,
+        "reviewer_notes": opinion.get("notes") if opinion else None,
+        "reviewer_provider": opinion.get("llm_provider") if opinion else None,
         "report_key": f"reports/{os.path.basename(report_path)}",
         "chart_key": f"reports/{os.path.basename(chart_path)}" if chart_path else None,
         "created_at": datetime.now(timezone.utc).isoformat(),

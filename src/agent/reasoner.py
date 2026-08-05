@@ -50,6 +50,7 @@ INSERT_LOG_SQL = text(
     VALUES
         (:disease, :region, :metric, :period_index, :flagged, :confidence,
          :reasoning, :tool_calls_made, :llm_provider)
+    RETURNING id
     """
 )
 
@@ -124,7 +125,7 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
     period_index = _current_period_index(engine, disease, region, metric)
 
     with engine.begin() as conn:
-        conn.execute(
+        decision_log_id = conn.execute(
             INSERT_LOG_SQL,
             {
                 "disease": disease,
@@ -137,7 +138,7 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
                 "tool_calls_made": tool_calls_made,
                 "llm_provider": backend.name,
             },
-        )
+        ).scalar_one()
 
     return {
         "flagged": bool(verdict["flagged"]),
@@ -146,4 +147,5 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
         "period_index": period_index,
         "tool_calls_made": tool_calls_made,
         "llm_provider": backend.name,
+        "decision_log_id": decision_log_id,
     }

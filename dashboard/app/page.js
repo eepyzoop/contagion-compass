@@ -70,6 +70,12 @@ export default async function Home() {
                 &nbsp;|&nbsp; z-score: {run.z_score} &nbsp;|&nbsp; Confidence: {run.confidence}
               </p>
               <p>{run.reasoning}</p>
+              {run.reviewer_agree !== undefined && run.reviewer_agree !== null && (
+                <p className={styles.muted}>
+                  Second opinion ({run.reviewer_provider}): {run.reviewer_agree ? "agrees" : "disagrees"}
+                  {run.reviewer_notes ? ` — ${run.reviewer_notes}` : ""}
+                </p>
+              )}
               {run.chartUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={run.chartUrl} alt="trend chart" className={styles.chart} />

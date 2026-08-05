@@ -39,7 +39,7 @@ class OllamaBackend:
         self.messages = []
 
     def _call(self):
-        resp = self._client.chat(model=self.model, messages=self.messages, tools=TOOL_SCHEMAS)
+        resp = self._client.chat(model=self.model, messages=self.messages, tools=self.tools)
         msg = resp.message
         self.messages.append(msg)
         tool_calls = [
@@ -48,7 +48,8 @@ class OllamaBackend:
         ]
         return Turn(tool_calls=tool_calls, text=msg.content)
 
-    def start(self, system_prompt, user_prompt):
+    def start(self, system_prompt, user_prompt, tools=None):
+        self.tools = TOOL_SCHEMAS if tools is None else tools
         self.messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -89,14 +90,14 @@ class GeminiBackend:
                 text = part.text
         return Turn(tool_calls=tool_calls, text=text)
 
-    def start(self, system_prompt, user_prompt):
+    def start(self, system_prompt, user_prompt, tools=None):
         declarations = [
             self._types.FunctionDeclaration(
                 name=t["function"]["name"],
                 description=t["function"]["description"],
                 parametersJsonSchema=t["function"]["parameters"],
             )
-            for t in TOOL_SCHEMAS
+            for t in (TOOL_SCHEMAS if tools is None else tools)
         ]
         config = self._types.GenerateContentConfig(
             system_instruction=system_prompt,

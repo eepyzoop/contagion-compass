@@ -11,6 +11,7 @@ Usage:
     python -m scripts.run_agent
 """
 
+from src.agent import reviewer
 from src.agent.reasoner import review
 from src.agent.tools import check_status, get_history
 from src.db.connection import get_engine
@@ -22,6 +23,8 @@ from src.report import upload_manifest, upload_to_s3
 
 
 def main():
+    engine = get_engine()
+
     print("Fetching latest InfoDengue week for Rio de Janeiro...")
     latest = fetch_latest_week()
     row = latest.iloc[0]
@@ -30,16 +33,22 @@ def main():
     load_readings(latest)
 
     print("\nHanding off to the agent for judgment...")
-    result = review(DISEASE, REGION, METRIC)
+    result = review(DISEASE, REGION, METRIC, engine=engine)
 
     print(f"\nProvider: {result['llm_provider']} | tool calls made: {result['tool_calls_made']}")
     print(f"Verdict: {'FLAGGED' if result['flagged'] else 'not flagged'} (confidence: {result['confidence']})")
     print(f"Reasoning: {result['reasoning']}")
 
-    engine = get_engine()
     status = check_status(engine, DISEASE, REGION, METRIC)
+
+    print("\nGetting a second opinion...")
+    opinion = reviewer.review(DISEASE, REGION, METRIC, result, status)
+    reviewer.save_review(engine, result["decision_log_id"], opinion)
+    agree_text = "agrees" if opinion["agree"] else "disagrees" if opinion["agree"] is False else "no opinion"
+    print(f"Reviewer ({opinion['llm_provider']}) {agree_text}: {opinion['notes']}")
+
     history = get_history(engine, DISEASE, REGION, METRIC)["readings"]
-    report_path, chart_path = save_report(DISEASE, REGION, METRIC, result, status, history=history)
+    report_path, chart_path = save_report(DISEASE, REGION, METRIC, result, status, history=history, opinion=opinion)
     print(f"\nReport saved: {report_path}")
 
     for path in (report_path, chart_path):
@@ -49,7 +58,7 @@ def main():
         if s3_uri:
             print(f"Uploaded to {s3_uri}")
 
-    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_path, chart_path)
+    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_path, chart_path, opinion=opinion)
     if manifest_uri:
         print(f"Uploaded to {manifest_uri}")
 
