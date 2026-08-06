@@ -65,6 +65,28 @@
   border-radius: 8px;
 }
 
+.queryInput {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.queryButton {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  background: #111;
+  color: #fff;
+  cursor: pointer;
+}
+
+.queryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 @media (prefers-color-scheme: dark) {
   .page {
     color: #ededed;
@@ -88,5 +110,11 @@
 
   .muted {
     color: #999;
+  }
+
+  .queryInput {
+    background: #0a0a0a;
+    border-color: #333;
+    color: #ededed;
   }
 }
