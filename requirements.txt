@@ -8,3 +8,4 @@ ollama>=0.4
 google-genai>=1.0
 boto3>=1.34
 matplotlib>=3.7
+prophet>=1.1

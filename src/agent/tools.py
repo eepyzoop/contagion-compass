@@ -8,8 +8,11 @@ decision_log.
 import pandas as pd
 from sqlalchemy import text
 
+from src.analysis.forecast import predict_next
 from src.analysis.stats import add_period_index
 from src.ingest.download_infodengue import REGION_GEOCODES, fetch_latest_week_raw
+
+MIN_FORECAST_TRAINING_WEEKS = 104  # ~2 years, enough for Prophet to learn yearly seasonality
 
 
 def check_status(engine, disease: str, region: str, metric: str) -> dict:
@@ -89,6 +92,36 @@ def get_history(engine, disease: str, region: str, metric: str, limit: int = 12)
     }
 
 
+def check_forecast(engine, disease: str, region: str, metric: str) -> dict:
+    """Trained-model expected value for the current period, independent of
+    the historical-same-week baseline: fits Prophet on every reading *before*
+    the current one and forecasts forward, so this is a genuine out-of-sample
+    prediction, not a fit that already includes the point being judged."""
+    readings = pd.read_sql(
+        text(
+            """
+            SELECT period_start, value FROM raw_readings
+            WHERE disease = :disease AND region = :region AND metric = :metric
+            ORDER BY period_start
+            """
+        ),
+        engine,
+        params={"disease": disease, "region": region, "metric": metric},
+    )
+    if len(readings) < MIN_FORECAST_TRAINING_WEEKS + 1:
+        return {"error": f"not enough history to train a forecast (need {MIN_FORECAST_TRAINING_WEEKS + 1}+ weeks)"}
+
+    train, current = readings.iloc[:-1], readings.iloc[-1]
+    forecast = predict_next(train, periods=1).iloc[0]
+
+    return {
+        "period_start": str(current["period_start"]),
+        "actual_value": float(current["value"]),
+        "predicted_value": round(float(forecast["yhat"]), 1),
+        "predicted_range": [round(float(forecast["yhat_lower"]), 1), round(float(forecast["yhat_upper"]), 1)],
+    }
+
+
 def check_climate_and_alert(engine, region: str) -> dict:
     """Live climate/Rt/InfoDengue-alert-level context for the region under
     review, for judging whether a spike has a plausible climate-driven
@@ -109,6 +142,7 @@ def check_other_cities(engine) -> dict:
 TOOL_IMPLS = {
     "check_status": check_status,
     "get_history": get_history,
+    "check_forecast": check_forecast,
     "check_climate_and_alert": check_climate_and_alert,
     "check_other_cities": check_other_cities,
 }
@@ -148,6 +182,29 @@ TOOL_SCHEMAS = [
                     "region": {"type": "string"},
                     "metric": {"type": "string"},
                     "limit": {"type": "integer", "description": "How many recent weeks (default 12)."},
+                },
+                "required": ["disease", "region", "metric"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_forecast",
+            "description": (
+                "Get a trained forecasting model's expected value and confidence "
+                "range for the current period, based on the trend/seasonality in "
+                "prior weeks alone (not the same-week-in-past-years baseline "
+                "check_status uses). A second, independent way to judge whether "
+                "this reading is unexpected -- useful when you want a model-backed "
+                "expected range, not just a historical average."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "disease": {"type": "string"},
+                    "region": {"type": "string"},
+                    "metric": {"type": "string"},
                 },
                 "required": ["disease", "region", "metric"],
             },
