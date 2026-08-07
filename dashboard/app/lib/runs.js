@@ -25,9 +25,14 @@ export async function loadRuns({ withUrls = true } = {}) {
       const manifest = JSON.parse(await streamToString(obj.Body));
       if (!withUrls) return manifest;
 
-      const [reportUrl, chartUrl] = await Promise.all([
+      const [reportUrl, reportUrlPublic, chartUrl] = await Promise.all([
         manifest.report_key
           ? getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: manifest.report_key }), {
+              expiresIn: 3600,
+            })
+          : null,
+        manifest.report_key_public
+          ? getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: manifest.report_key_public }), {
               expiresIn: 3600,
             })
           : null,
@@ -38,7 +43,7 @@ export async function loadRuns({ withUrls = true } = {}) {
           : null,
       ]);
 
-      return { ...manifest, reportUrl, chartUrl };
+      return { ...manifest, reportUrl, reportUrlPublic, chartUrl };
     })
   );
 

@@ -41,6 +41,7 @@ export default async function Home() {
               )}
               <p>
                 {run.reportUrl && <a href={run.reportUrl}>Raw report</a>}
+                {run.reportUrlPublic && <> &nbsp;|&nbsp; <a href={run.reportUrlPublic}>Plain-language summary</a></>}
                 {" "}
                 <span className={styles.muted}>
                   via {run.llm_provider}, {run.tool_calls_made} tool call(s)

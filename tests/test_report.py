@@ -76,18 +76,43 @@ def test_render_omits_second_opinion_when_absent():
     assert "Second opinion" not in md
 
 
-def test_save_writes_chart_when_history_given():
+def test_render_policymaker_includes_recommended_action():
+    md = render("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS)
+    assert "Recommended action" in md
+    assert "Escalate" in md  # flagged + high confidence
+
+
+def test_render_general_public_uses_plain_headline_not_zscore():
+    md = render("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, audience="general_public")
+    assert "Bottom line" in md
+    assert "Rio De Janeiro" in md
+    # the technical reasoning is still included, just clearly separated, not the headline
+    assert "technical notes" in md.lower()
+    assert RESULT["reasoning"] in md
+    assert "z-score" not in md.split("technical notes")[0].lower()
+
+
+def test_render_general_public_not_flagged_reassures():
+    result = {**RESULT, "flagged": False}
+    md = render("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", result, STATUS, audience="general_public")
+    assert "no cause for concern" in md.lower()
+    assert "Bottom line:** Nothing unusual" in md
+
+
+def test_save_writes_both_audiences_and_chart_when_history_given():
     tmpdir = tempfile.mkdtemp()
     prev_dir = os.getcwd()
     os.chdir(tmpdir)
     try:
         history = [{"period_start": f"2026-0{i}-01", "value": 100.0 + i} for i in range(1, 6)]
-        report_path, chart_path = save(
+        report_paths, chart_path = save(
             "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, history=history
         )
-        assert os.path.isfile(report_path)
+        assert set(report_paths) == {"policymaker", "general_public"}
         assert chart_path is not None and os.path.isfile(chart_path)
-        assert os.path.basename(chart_path) in open(report_path).read()
+        for path in report_paths.values():
+            assert os.path.isfile(path)
+            assert os.path.basename(chart_path) in open(path).read()
     finally:
         os.chdir(prev_dir)
         shutil.rmtree(tmpdir)
@@ -98,8 +123,9 @@ def test_save_skips_chart_without_history():
     prev_dir = os.getcwd()
     os.chdir(tmpdir)
     try:
-        report_path, chart_path = save("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS)
+        report_paths, chart_path = save("dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS)
         assert chart_path is None
+        assert all(os.path.isfile(p) for p in report_paths.values())
     finally:
         os.chdir(prev_dir)
         shutil.rmtree(tmpdir)
@@ -113,10 +139,13 @@ class FakeS3Client:
         self.put_calls.append(kwargs)
 
 
+REPORT_PATHS = {"policymaker": "reports/x_policymaker.md", "general_public": "reports/x_general_public.md"}
+
+
 def test_upload_manifest_skips_without_bucket():
     report.S3_BUCKET = None
     uri = report.upload_manifest(
-        "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, "reports/x.md", "reports/x.png"
+        "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, REPORT_PATHS, "reports/x.png"
     )
     assert uri is None
 
@@ -128,7 +157,7 @@ def test_upload_manifest_writes_json_when_bucket_set():
     report.boto3.client = lambda name: fake_client
     try:
         uri = report.upload_manifest(
-            "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, "reports/x.md", "reports/x.png"
+            "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS, REPORT_PATHS, "reports/x.png"
         )
         assert uri == "s3://test-bucket/reports/x.json"
         assert len(fake_client.put_calls) == 1
@@ -136,7 +165,8 @@ def test_upload_manifest_writes_json_when_bucket_set():
         assert body["disease"] == "dengue"
         assert body["flagged"] is True
         assert body["z_score"] == 4.36
-        assert body["report_key"] == "reports/x.md"
+        assert body["report_key"] == "reports/x_policymaker.md"
+        assert body["report_key_public"] == "reports/x_general_public.md"
         assert body["chart_key"] == "reports/x.png"
         assert body["reviewer_agree"] is None
         assert body["reviewer_notes"] is None
@@ -158,7 +188,7 @@ def test_upload_manifest_includes_reviewer_opinion_when_given():
             "estimated_cases",
             RESULT,
             STATUS,
-            "reports/x.md",
+            REPORT_PATHS,
             "reports/x.png",
             opinion=opinion,
         )
@@ -178,7 +208,10 @@ if __name__ == "__main__":
     test_render_omits_chart_when_absent()
     test_render_includes_second_opinion_when_given()
     test_render_omits_second_opinion_when_absent()
-    test_save_writes_chart_when_history_given()
+    test_render_policymaker_includes_recommended_action()
+    test_render_general_public_uses_plain_headline_not_zscore()
+    test_render_general_public_not_flagged_reassures()
+    test_save_writes_both_audiences_and_chart_when_history_given()
     test_save_skips_chart_without_history()
     test_upload_manifest_skips_without_bucket()
     test_upload_manifest_writes_json_when_bucket_set()

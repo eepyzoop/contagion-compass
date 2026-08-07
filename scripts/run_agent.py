@@ -48,21 +48,21 @@ def main():
     print(f"Reviewer ({opinion['llm_provider']}) {agree_text}: {opinion['notes']}")
 
     history = get_history(engine, DISEASE, REGION, METRIC)["readings"]
-    report_path, chart_path = save_report(DISEASE, REGION, METRIC, result, status, history=history, opinion=opinion)
-    print(f"\nReport saved: {report_path}")
+    report_paths, chart_path = save_report(DISEASE, REGION, METRIC, result, status, history=history, opinion=opinion)
+    print(f"\nReports saved: {report_paths['policymaker']} (policymaker), {report_paths['general_public']} (general public)")
 
-    for path in (report_path, chart_path):
+    for path in (*report_paths.values(), chart_path):
         if not path:
             continue
         s3_uri = upload_to_s3(path)
         if s3_uri:
             print(f"Uploaded to {s3_uri}")
 
-    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_path, chart_path, opinion=opinion)
+    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_paths, chart_path, opinion=opinion)
     if manifest_uri:
         print(f"Uploaded to {manifest_uri}")
 
-    if notify_slack(DISEASE, REGION, METRIC, result, report_path):
+    if notify_slack(DISEASE, REGION, METRIC, result, report_paths["policymaker"]):
         print("Slack alert sent.")
 
 
