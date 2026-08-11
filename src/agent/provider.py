@@ -14,6 +14,8 @@ import json
 import os
 
 import requests
+from google.genai.errors import ServerError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.agent.tools import TOOL_SCHEMAS
 
@@ -79,6 +81,18 @@ class GeminiBackend:
         self.model = model
         self.chat = None
 
+    # ponytail: retry only transient 5xx (e.g. "high demand") -- google-genai's
+    # own internal retry gives up too fast for scheduled runs with no human
+    # around to just rerun it. ClientErrors (bad request, quota) aren't retried.
+    @retry(
+        retry=retry_if_exception_type(ServerError),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=2, min=2, max=30),
+        reraise=True,
+    )
+    def _send(self, message):
+        return self.chat.send_message(message)
+
     def _parse(self, response):
         parts = response.candidates[0].content.parts
         tool_calls, text = [], None
@@ -104,14 +118,14 @@ class GeminiBackend:
             tools=[self._types.Tool(functionDeclarations=declarations)],
         )
         self.chat = self._client.chats.create(model=self.model, config=config)
-        return self._parse(self.chat.send_message(user_prompt))
+        return self._parse(self._send(user_prompt))
 
     def send_tool_result(self, tool_call_id, name, result: dict):
         part = self._types.Part.from_function_response(name=name, response=result)
-        return self._parse(self.chat.send_message(part))
+        return self._parse(self._send(part))
 
     def nudge(self, text: str):
-        return self._parse(self.chat.send_message(text))
+        return self._parse(self._send(text))
 
 
 def get_backend():

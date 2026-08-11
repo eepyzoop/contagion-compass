@@ -30,7 +30,8 @@ export async function POST(request) {
   const runs = await loadRuns({ withUrls: false });
   const prompt =
     "You are answering questions about a dengue surveillance agent's past runs, using only the run log below. " +
-    "If the log doesn't contain enough information to answer, say so plainly instead of guessing.\n\n" +
+    "If the log doesn't contain enough information to answer, say so plainly instead of guessing. " +
+    "Reply in plain prose sentences only — no markdown (no **bold**, no bullet points, no headers).\n\n" +
     `Run log (most recent first):\n${summarizeRuns(runs)}\n\nQuestion: ${question}`;
 
   const res = await fetch(
