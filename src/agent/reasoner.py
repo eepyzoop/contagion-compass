@@ -79,11 +79,17 @@ def _current_period_index(engine, disease, region, metric) -> int:
     return int(reading.iloc[0]["period_index"])
 
 
-def _run_loop(backend, engine, user_prompt: str) -> tuple[dict, int]:
+def _run_loop(
+    backend, engine, user_prompt: str, tool_impls: dict | None = None, tools: list | None = None
+) -> tuple[dict, int]:
     """Drives the tool-call loop until submit_verdict or the budget runs out.
     Returns (verdict_dict, tool_calls_made). Isolated from the DB writes in
-    `review()` so it can be exercised without a real Postgres connection."""
-    turn = backend.start(SYSTEM_PROMPT, user_prompt)
+    `review()` so it can be exercised without a real Postgres connection.
+    tool_impls/tools default to the real production tool set (TOOL_IMPLS/
+    TOOL_SCHEMAS) -- scripts/evaluate_agent.py overrides both to replay
+    historical weeks against a point-in-time-correct subset instead."""
+    tool_impls = TOOL_IMPLS if tool_impls is None else tool_impls
+    turn = backend.start(SYSTEM_PROMPT, user_prompt, tools=tools)
 
     tool_calls_made = 0
     verdict = None
@@ -105,7 +111,7 @@ def _run_loop(backend, engine, user_prompt: str) -> tuple[dict, int]:
                 verdict = call["arguments"]
                 break
             sentry_sdk.add_breadcrumb(category="tool_call", message=call["name"], data=call["arguments"], level="info")
-            impl = TOOL_IMPLS.get(call["name"])
+            impl = tool_impls.get(call["name"])
             if impl is None:
                 result = {"error": f"unknown tool {call['name']}"}
             else:

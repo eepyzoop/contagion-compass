@@ -18,7 +18,7 @@ class FakeBackend:
     def __init__(self, turns):
         self._turns = list(turns)
 
-    def start(self, system_prompt, user_prompt):
+    def start(self, system_prompt, user_prompt, tools=None):
         return self._turns.pop(0)
 
     def send_tool_result(self, tool_call_id, name, result):
