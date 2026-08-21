@@ -64,8 +64,10 @@ def main():
     if manifest_uri:
         print(f"Uploaded to {manifest_uri}")
 
-    if notify_slack(DISEASE, REGION, METRIC, result, report_paths["policymaker"]):
+    if notify_slack(DISEASE, REGION, METRIC, result, report_paths["policymaker"], engine=engine):
         print("Slack alert sent.")
+    else:
+        print("Slack alert skipped (not flagged, no webhook, or suppressed as a repeat alert).")
 
 
 if __name__ == "__main__":
