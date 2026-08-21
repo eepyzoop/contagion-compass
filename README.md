@@ -120,21 +120,15 @@ dashboard/      # Next.js app reading run manifests from S3
 
 ## Running locally
 
+Needs a Postgres 16 server -- a native local install, or a free hosted
+instance (e.g. [Neon](https://neon.tech)).
+
 ```bash
-docker compose up -d postgres          # local Postgres
 pip install -r requirements.txt
-cp .env.example .env                   # fill in at least GEMINI_API_KEY
+cp .env.example .env                   # fill in DATABASE_URL + GEMINI_API_KEY
 
 python -m scripts.refresh_baseline_infodengue   # one-time: build the baseline
 python -m scripts.run_agent                     # run the agent once
-```
-
-Or run the whole thing containerized:
-
-```bash
-docker compose up -d postgres
-docker compose build agent
-docker compose run --rm agent
 ```
 
 ## Testing
