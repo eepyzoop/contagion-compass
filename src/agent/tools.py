@@ -8,6 +8,7 @@ decision_log.
 import pandas as pd
 from sqlalchemy import text
 
+from src.agent.outbreak_news import check_outbreak_news
 from src.analysis.forecast import predict_next
 from src.analysis.stats import add_period_index
 from src.ingest.download_infodengue import REGION_GEOCODES, fetch_latest_week_raw
@@ -145,6 +146,7 @@ TOOL_IMPLS = {
     "check_forecast": check_forecast,
     "check_climate_and_alert": check_climate_and_alert,
     "check_other_cities": check_other_cities,
+    "check_outbreak_news": check_outbreak_news,
 }
 
 TOOL_SCHEMAS = [
@@ -237,6 +239,23 @@ TOOL_SCHEMAS = [
                 "isolated to one region or part of a broader regional pattern."
             ),
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_outbreak_news",
+            "description": (
+                "Check WHO Disease Outbreak News for recent official bulletins "
+                "mentioning this region -- use this to corroborate a statistical "
+                "spike with real-world outbreak reporting, or to note that WHO "
+                "hasn't reported anything unusual despite the numbers."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"region": {"type": "string"}},
+                "required": ["region"],
+            },
         },
     },
     {

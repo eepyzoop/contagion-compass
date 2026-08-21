@@ -29,8 +29,11 @@ SYSTEM_PROMPT = (
     "second, independently-computed signal (InfoDengue's own alert level "
     "and Rt) plus a possible climate explanation for the same region; "
     "check_other_cities tells you whether the spike is isolated to this "
-    "region or part of a broader regional pattern. You don't need any of "
-    "these for a normal-looking reading. "
+    "region or part of a broader regional pattern; check_outbreak_news "
+    "checks WHO's official Disease Outbreak News bulletins for real-world "
+    "corroboration -- useful for confirming a spike is a known reported "
+    "outbreak, or noting that WHO hasn't flagged anything despite the "
+    "numbers. You don't need any of these for a normal-looking reading. "
     "Decide whether this is a meaningful anomaly worth flagging to a human, "
     "or normal seasonal variation / a plausible mundane explanation (e.g. a "
     "holiday reporting lag). As a rough statistical reference (not a hard "
@@ -103,7 +106,15 @@ def _run_loop(backend, engine, user_prompt: str) -> tuple[dict, int]:
                 break
             sentry_sdk.add_breadcrumb(category="tool_call", message=call["name"], data=call["arguments"], level="info")
             impl = TOOL_IMPLS.get(call["name"])
-            result = impl(engine, **call["arguments"]) if impl else {"error": f"unknown tool {call['name']}"}
+            if impl is None:
+                result = {"error": f"unknown tool {call['name']}"}
+            else:
+                try:
+                    result = impl(engine, **call["arguments"])
+                except Exception as exc:  # noqa: BLE001 -- a flaky external call (e.g. WHO's API)
+                    # shouldn't crash the whole run; give the model an error to react to instead.
+                    sentry_sdk.capture_exception(exc)
+                    result = {"error": f"{call['name']} failed: {exc}"}
             turn = backend.send_tool_result(call["id"], call["name"], result)
         nudged = False
 
