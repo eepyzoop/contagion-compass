@@ -11,12 +11,21 @@ from datetime import datetime, timezone
 
 import boto3
 import matplotlib
+from sqlalchemy import text
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 REPORTS_DIR = "reports"
 S3_BUCKET = os.environ.get("S3_BUCKET")
+
+UPDATE_ARTIFACT_KEYS_SQL = text(
+    """
+    UPDATE decision_log
+    SET report_key = :report_key, report_key_public = :report_key_public, chart_key = :chart_key
+    WHERE id = :decision_log_id
+    """
+)
 
 
 AUDIENCES = ("policymaker", "general_public")
@@ -219,11 +228,17 @@ def upload_manifest(
     report_paths: dict[str, str],
     chart_path: str | None = None,
     opinion: dict | None = None,
+    engine=None,
 ) -> str | None:
-    """Writes a JSON summary of this run to S3 alongside the reports/chart --
-    the dashboard's only data source, so it never needs direct DB access.
-    report_paths: {"policymaker": path, "general_public": path}, from save().
-    No-ops (returns None) if S3_BUCKET isn't set, same as upload_to_s3()."""
+    """Writes a JSON summary of this run to S3 alongside the reports/chart
+    (kept for the report/chart artifacts themselves -- see the 2026-08-21
+    dashboard-data-source decision for why S3 stays just for files while
+    structured run data moved to the /runs API). report_paths:
+    {"policymaker": path, "general_public": path}, from save(). No-ops
+    (returns None) if S3_BUCKET isn't set, same as upload_to_s3().
+    If `engine` is given and result["decision_log_id"] is present, also
+    writes the same report_key/report_key_public/chart_key back onto that
+    decision_log row, so the /runs API can serve them to the dashboard."""
     if not S3_BUCKET:
         return None
     manifest = {
@@ -255,4 +270,17 @@ def upload_manifest(
     boto3.client("s3").put_object(
         Bucket=S3_BUCKET, Key=key, Body=json.dumps(manifest).encode(), ContentType="application/json"
     )
+
+    if engine is not None and result.get("decision_log_id") is not None:
+        with engine.begin() as conn:
+            conn.execute(
+                UPDATE_ARTIFACT_KEYS_SQL,
+                {
+                    "report_key": manifest["report_key"],
+                    "report_key_public": manifest["report_key_public"],
+                    "chart_key": manifest["chart_key"],
+                    "decision_log_id": result["decision_log_id"],
+                },
+            )
+
     return f"s3://{S3_BUCKET}/{key}"

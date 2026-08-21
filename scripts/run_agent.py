@@ -60,7 +60,9 @@ def main():
         if s3_uri:
             print(f"Uploaded to {s3_uri}")
 
-    manifest_uri = upload_manifest(DISEASE, REGION, METRIC, result, status, report_paths, chart_path, opinion=opinion)
+    manifest_uri = upload_manifest(
+        DISEASE, REGION, METRIC, result, status, report_paths, chart_path, opinion=opinion, engine=engine
+    )
     if manifest_uri:
         print(f"Uploaded to {manifest_uri}")
 

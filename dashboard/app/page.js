@@ -2,7 +2,7 @@ import styles from "./page.module.css";
 import { loadRuns } from "./lib/runs";
 import QueryBox from "./QueryBox";
 
-// Every run adds a new manifest in S3 -- never statically cache this page.
+// Every run adds a new decision_log row -- never statically cache this page.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -16,7 +16,7 @@ export default async function Home() {
         {runs.length === 0 && <p>No runs yet.</p>}
         <div className={styles.runList}>
           {runs.map((run) => (
-            <article key={run.report_key} className={styles.card}>
+            <article key={run.id} className={styles.card}>
               <div className={styles.cardHeader}>
                 <span className={run.flagged ? styles.badgeFlagged : styles.badgeOk}>
                   {run.flagged ? "FLAGGED" : "Not flagged"}

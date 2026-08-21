@@ -87,6 +87,32 @@ EC2 launch type) running the agent weekly, matching the data source's own
 update cadence — no infrastructure sitting idle waiting for a schedule
 that mostly wouldn't fire.
 
+### Free-tier re-platform (Neon + Render + GitHub Actions + Vercel)
+
+In progress (Phase 7): migrating off the AWS deployment above to a fully
+free-tier stack with no fixed-cost infrastructure and no Docker —
+production Postgres on [Neon](https://neon.tech), the REST API
+([`src/api.py`](src/api.py)) on [Render](https://render.com) via
+[`render.yaml`](render.yaml), the weekly agent run on GitHub Actions
+([`.github/workflows/weekly-run.yml`](.github/workflows/weekly-run.yml)),
+and the dashboard staying on Vercel. S3 stays in the loop for now, serving
+generated reports/charts (the dashboard reads run data from the API, but
+report/chart files still live on S3).
+
+**Neon connection notes:** use the pooled connection string (hostname
+contains `-pooler`) from Neon's dashboard — it already appends
+`?sslmode=require`. `pool_pre_ping=True` on the shared SQLAlchemy engine
+([`src/db/connection.py`](src/db/connection.py), added for RDS's
+idle-connection drops) also transparently covers Neon's free-tier
+idle-suspend behavior: Neon suspends its compute after a few minutes of
+inactivity and resumes on the next query, which otherwise looks identical
+to a dropped connection.
+
+**Free-tier services sleep when idle:** both Render's free web service
+plan and Neon's free compute suspend after a period of inactivity and take
+a few seconds to wake back up on the next request — expect a slow first
+request after idle time, not a bug.
+
 ---
 
 ## Tech stack

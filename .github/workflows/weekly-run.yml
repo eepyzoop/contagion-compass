@@ -1,0 +1,39 @@
+name: Weekly agent run
+
+on:
+  schedule:
+    # Every Monday 12:00 UTC -- matches InfoDengue's own weekly update
+    # cadence (same cron this project used on EventBridge before the
+    # AWS -> Neon/Render/GitHub Actions/Vercel re-platform, Phase 7).
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m scripts.run_agent
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-2.5-flash
+          # OLLAMA_HOST/OLLAMA_MODEL deliberately omitted -- no local model
+          # on a hosted runner. get_backend()'s reachability check fails
+          # fast without them and falls through to Gemini automatically,
+          # same as the old ECS task (no code change needed for this).
+          S3_BUCKET: contagion-compass-726053620198
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ENV: production

@@ -55,7 +55,28 @@ CREATE TABLE IF NOT EXISTS decision_log (
 -- decision_log already existed before the reviewer columns were added --
 -- CREATE TABLE IF NOT EXISTS above is a no-op against an existing table,
 -- so the new columns need an explicit migration for already-provisioned
--- databases (local Docker, RDS). Harmless no-op against a fresh table too.
+-- databases (local Docker, RDS, Neon). Harmless no-op against a fresh
+-- table too.
 ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_agree BOOLEAN;
 ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_notes TEXT;
 ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS reviewer_provider TEXT;
+
+-- Phase 7 task 7: S3 object keys for this run's report/chart artifacts,
+-- written back by src.report.upload_manifest() after upload. Lets the
+-- dashboard get report/chart S3 keys from the /runs API (decision_log)
+-- instead of only from the S3 manifest JSON -- see the 2026-08-21
+-- dashboard-data-source decision.
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS report_key TEXT;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS report_key_public TEXT;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS chart_key TEXT;
+
+-- Phase 7 task 7: the actual reading/baseline numbers behind each verdict --
+-- previously only captured in the S3 manifest (src.report.upload_manifest),
+-- not the DB itself, which meant decision_log alone couldn't fully explain
+-- a run. Written by reasoner.review() via a check_status() call alongside
+-- the existing period_index lookup.
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS period_start DATE;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS value DOUBLE PRECISION;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS baseline_mean DOUBLE PRECISION;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS baseline_stddev DOUBLE PRECISION;
+ALTER TABLE decision_log ADD COLUMN IF NOT EXISTS z_score DOUBLE PRECISION;

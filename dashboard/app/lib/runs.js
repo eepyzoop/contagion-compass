@@ -1,51 +1,34 @@
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+// Phase 7: structured run data comes from the /runs API (Neon-backed),
+// not S3 manifests -- see the 2026-08-21 dashboard-data-source decision.
+// Report/chart files still live on S3, so this still presigns those keys.
 const BUCKET = process.env.S3_BUCKET;
+const API_BASE_URL = process.env.API_BASE_URL;
 const client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
-async function streamToString(stream) {
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  return Buffer.concat(chunks).toString("utf-8");
+function presign(key) {
+  if (!key) return null;
+  return getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 });
 }
 
-// Every run adds a new manifest in S3 -- always re-list, never cache across requests.
-export async function loadRuns({ withUrls = true } = {}) {
-  const list = await client.send(
-    new ListObjectsV2Command({ Bucket: BUCKET, Prefix: "reports/" })
-  );
-  const jsonKeys = (list.Contents || [])
-    .map((o) => o.Key)
-    .filter((k) => k.endsWith(".json"));
+// Every run adds a new decision_log row -- always re-fetch, never cache across requests.
+export async function loadRuns({ withUrls = true, limit = 50 } = {}) {
+  const res = await fetch(`${API_BASE_URL}/runs?limit=${limit}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load runs from API (${res.status})`);
+  const { runs } = await res.json();
 
-  const runs = await Promise.all(
-    jsonKeys.map(async (key) => {
-      const obj = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-      const manifest = JSON.parse(await streamToString(obj.Body));
-      if (!withUrls) return manifest;
+  if (!withUrls) return runs;
 
+  return Promise.all(
+    runs.map(async (run) => {
       const [reportUrl, reportUrlPublic, chartUrl] = await Promise.all([
-        manifest.report_key
-          ? getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: manifest.report_key }), {
-              expiresIn: 3600,
-            })
-          : null,
-        manifest.report_key_public
-          ? getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: manifest.report_key_public }), {
-              expiresIn: 3600,
-            })
-          : null,
-        manifest.chart_key
-          ? getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: manifest.chart_key }), {
-              expiresIn: 3600,
-            })
-          : null,
+        presign(run.report_key),
+        presign(run.report_key_public),
+        presign(run.chart_key),
       ]);
-
-      return { ...manifest, reportUrl, reportUrlPublic, chartUrl };
+      return { ...run, reportUrl, reportUrlPublic, chartUrl };
     })
   );
-
-  return runs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }

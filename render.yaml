@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: contagion-compass-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      # Pinned to match the Python version this project has run on since
+      # Phase 5's Dockerfile (python:3.12-slim) -- fully-qualified version
+      # required by Render (see docs/python-version).
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ENV
+        value: production
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      # OLLAMA_HOST/OLLAMA_MODEL deliberately not set -- no local model on
+      # Render, falls through to Gemini automatically, same reasoning as
+      # the GitHub Actions workflow and the old ECS task.
+      # Everything below is set manually in the Render dashboard after
+      # the Blueprint is created (never committed -- same reasoning as
+      # this project's local .env staying gitignored).
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

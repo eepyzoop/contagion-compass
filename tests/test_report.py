@@ -175,6 +175,67 @@ def test_upload_manifest_writes_json_when_bucket_set():
         report.S3_BUCKET = None
 
 
+class FakeConn:
+    def __init__(self, calls):
+        self._calls = calls
+
+    def execute(self, sql, params):
+        self._calls.append(params)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class FakeEngine:
+    def __init__(self):
+        self.calls = []
+
+    def begin(self):
+        return FakeConn(self.calls)
+
+
+def test_upload_manifest_writes_artifact_keys_to_decision_log_when_engine_given():
+    report.S3_BUCKET = "test-bucket"
+    fake_client = FakeS3Client()
+    prev_client = report.boto3.client
+    report.boto3.client = lambda name: fake_client
+    fake_engine = FakeEngine()
+    result_with_id = {**RESULT, "decision_log_id": 42}
+    try:
+        report.upload_manifest(
+            "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", result_with_id, STATUS,
+            REPORT_PATHS, "reports/x.png", engine=fake_engine,
+        )
+        assert len(fake_engine.calls) == 1
+        call = fake_engine.calls[0]
+        assert call["decision_log_id"] == 42
+        assert call["report_key"] == "reports/x_policymaker.md"
+        assert call["chart_key"] == "reports/x.png"
+    finally:
+        report.boto3.client = prev_client
+        report.S3_BUCKET = None
+
+
+def test_upload_manifest_skips_db_write_without_decision_log_id():
+    report.S3_BUCKET = "test-bucket"
+    fake_client = FakeS3Client()
+    prev_client = report.boto3.client
+    report.boto3.client = lambda name: fake_client
+    fake_engine = FakeEngine()
+    try:
+        report.upload_manifest(
+            "dengue", "BRAZIL-RIO_DE_JANEIRO", "estimated_cases", RESULT, STATUS,
+            REPORT_PATHS, "reports/x.png", engine=fake_engine,
+        )
+        assert fake_engine.calls == []
+    finally:
+        report.boto3.client = prev_client
+        report.S3_BUCKET = None
+
+
 def test_upload_manifest_includes_reviewer_opinion_when_given():
     report.S3_BUCKET = "test-bucket"
     fake_client = FakeS3Client()
@@ -215,5 +276,7 @@ if __name__ == "__main__":
     test_save_skips_chart_without_history()
     test_upload_manifest_skips_without_bucket()
     test_upload_manifest_writes_json_when_bucket_set()
+    test_upload_manifest_writes_artifact_keys_to_decision_log_when_engine_given()
+    test_upload_manifest_skips_db_write_without_decision_log_id()
     test_upload_manifest_includes_reviewer_opinion_when_given()
     print("ok")

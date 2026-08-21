@@ -10,7 +10,7 @@ Run locally with:
 
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Path, Query
@@ -125,6 +125,11 @@ class DecisionLogEntry(BaseModel):
     region: str
     metric: str
     period_index: int
+    period_start: Optional[date] = Field(default=None, description="Start date of the reporting week reviewed.")
+    value: Optional[float] = Field(default=None, description="Reported/estimated value at the time of this run.")
+    baseline_mean: Optional[float] = Field(default=None, description="Historical mean at the time of this run.")
+    baseline_stddev: Optional[float] = Field(default=None, description="Historical stddev at the time of this run.")
+    z_score: Optional[float] = Field(default=None, description="(value - mean) / stddev at the time of this run.")
     flagged: bool
     confidence: str
     reasoning: str
@@ -133,6 +138,9 @@ class DecisionLogEntry(BaseModel):
     reviewer_agree: Optional[bool]
     reviewer_notes: Optional[str]
     reviewer_provider: Optional[str]
+    report_key: Optional[str] = Field(default=None, description="S3 key for the policymaker report, if uploaded.")
+    report_key_public: Optional[str] = Field(default=None, description="S3 key for the plain-language report, if uploaded.")
+    chart_key: Optional[str] = Field(default=None, description="S3 key for the trend chart PNG, if uploaded.")
     created_at: datetime
 
 

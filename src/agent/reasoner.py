@@ -10,7 +10,7 @@ import sentry_sdk
 from sqlalchemy import text
 
 from src.agent.provider import get_backend
-from src.agent.tools import TOOL_IMPLS
+from src.agent.tools import TOOL_IMPLS, check_status
 from src.analysis.stats import add_period_index
 from src.db.connection import get_engine, init_schema
 
@@ -54,10 +54,12 @@ INSERT_LOG_SQL = text(
     """
     INSERT INTO decision_log
         (disease, region, metric, period_index, flagged, confidence,
-         reasoning, tool_calls_made, llm_provider)
+         reasoning, tool_calls_made, llm_provider,
+         period_start, value, baseline_mean, baseline_stddev, z_score)
     VALUES
         (:disease, :region, :metric, :period_index, :flagged, :confidence,
-         :reasoning, :tool_calls_made, :llm_provider)
+         :reasoning, :tool_calls_made, :llm_provider,
+         :period_start, :value, :baseline_mean, :baseline_stddev, :z_score)
     RETURNING id
     """
 )
@@ -150,6 +152,13 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
     verdict, tool_calls_made = _run_loop(backend, engine, user_prompt)
 
     period_index = _current_period_index(engine, disease, region, metric)
+    # A second, cheap check_status() call so decision_log stores the actual
+    # numbers behind the verdict, not just the verdict text -- previously
+    # only captured in the S3 manifest, not the DB itself. {"error": ...}
+    # (no baseline yet) degrades to NULLs rather than blocking the insert;
+    # period_index above already comes from raw_readings independently of
+    # whether a baseline exists.
+    status = check_status(engine, disease, region, metric)
 
     with engine.begin() as conn:
         decision_log_id = conn.execute(
@@ -164,6 +173,11 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
                 "reasoning": verdict["reasoning"],
                 "tool_calls_made": tool_calls_made,
                 "llm_provider": backend.name,
+                "period_start": status.get("period_start"),
+                "value": status.get("value"),
+                "baseline_mean": status.get("baseline_mean"),
+                "baseline_stddev": status.get("baseline_stddev"),
+                "z_score": status.get("z_score"),
             },
         ).scalar_one()
 
