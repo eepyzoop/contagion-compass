@@ -1,3 +1,26 @@
+Contagion Compass's public dashboard — lists every agent run (verdict,
+numbers, reasoning, second opinion, trend chart, report links). Structured
+run data comes from the [REST API](../src/api.py) (`src/api.py`, deployed
+on Render); report/chart files are read from S3 via short-lived presigned
+URLs, so this app only ever needs read access to one bucket prefix, never
+write access and never the database directly.
+
+## Environment variables
+
+Create `.env.local` with:
+
+```bash
+API_BASE_URL=http://localhost:8000     # or the deployed Render URL
+
+S3_BUCKET=your-bucket-name
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...                  # scoped to s3:GetObject/ListBucket on reports/* only
+AWS_SECRET_ACCESS_KEY=...
+
+GEMINI_API_KEY=...                     # for the natural-language query box
+GEMINI_MODEL=gemini-2.5-flash
+```
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
