@@ -6,6 +6,7 @@ row to decision_log -- flagged or not -- as the explainability audit trail.
 """
 
 import pandas as pd
+import sentry_sdk
 from sqlalchemy import text
 
 from src.agent.provider import get_backend
@@ -100,6 +101,7 @@ def _run_loop(backend, engine, user_prompt: str) -> tuple[dict, int]:
             if call["name"] == "submit_verdict":
                 verdict = call["arguments"]
                 break
+            sentry_sdk.add_breadcrumb(category="tool_call", message=call["name"], data=call["arguments"], level="info")
             impl = TOOL_IMPLS.get(call["name"])
             result = impl(engine, **call["arguments"]) if impl else {"error": f"unknown tool {call['name']}"}
             turn = backend.send_tool_result(call["id"], call["name"], result)
@@ -108,6 +110,9 @@ def _run_loop(backend, engine, user_prompt: str) -> tuple[dict, int]:
     if verdict is None:
         # ponytail: tool-call budget exhausted without a verdict -- fail safe
         # by flagging for human review rather than silently dropping the run.
+        sentry_sdk.capture_message(
+            f"Agent exhausted tool-call budget ({MAX_TOOL_CALLS}) without a verdict", level="warning"
+        )
         verdict = {
             "flagged": True,
             "confidence": "low",
@@ -122,6 +127,7 @@ def review(disease: str, region: str, metric: str, engine=None, backend=None) ->
     engine = engine or get_engine()
     init_schema(engine)
     backend = backend or get_backend()
+    sentry_sdk.set_tag("llm_provider", backend.name)
 
     user_prompt = f"Review this week's data for disease={disease}, region={region}, metric={metric}."
     verdict, tool_calls_made = _run_loop(backend, engine, user_prompt)

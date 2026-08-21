@@ -13,9 +13,11 @@ from src.analysis.stats import add_period_index, compute_trailing_baseline, flag
 from src.db.connection import get_engine
 from src.db.load import load_readings
 from src.ingest.download_opendengue import load_clean_national_dengue
+from src.observability import init_sentry
 
 
 def main():
+    init_sentry()
     print("Downloading + cleaning OpenDengue national extract...")
     data = load_clean_national_dengue()
     print(f"  {len(data)} rows across {data['region'].nunique()} countries")

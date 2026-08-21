@@ -11,6 +11,7 @@ Uses its own get_backend() call, independent of which provider the
 primary agent used -- same reliability abstraction, just invoked again.
 """
 
+import sentry_sdk
 from sqlalchemy import text
 
 from src.agent.provider import get_backend
@@ -67,6 +68,7 @@ def _run_review_loop(backend, user_prompt: str) -> dict:
 
     # ponytail: give up after one nudge, same fail-safe posture as reasoner.py --
     # a missing review shouldn't block the report, just leaves reviewer_agree NULL.
+    sentry_sdk.capture_message("Reviewer did not return a structured opinion after one nudge", level="warning")
     return {"agree": None, "notes": (turn.text or "").strip() or "Reviewer did not return a structured opinion."}
 
 

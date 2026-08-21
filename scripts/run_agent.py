@@ -18,11 +18,13 @@ from src.db.connection import get_engine
 from src.db.load import load_readings
 from src.ingest.download_infodengue import DISEASE, METRIC, REGION, fetch_latest_week
 from src.notify import notify_slack
+from src.observability import init_sentry
 from src.report import save as save_report
 from src.report import upload_manifest, upload_to_s3
 
 
 def main():
+    init_sentry()
     engine = get_engine()
 
     print("Fetching latest InfoDengue week for Rio de Janeiro...")

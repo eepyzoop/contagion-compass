@@ -28,6 +28,9 @@ from src.ingest.download_infodengue import DISEASE as DEFAULT_DISEASE
 from src.ingest.download_infodengue import METRIC as DEFAULT_METRIC
 from src.ingest.download_infodengue import REGION as DEFAULT_REGION
 from src.ingest.download_infodengue import REGION_GEOCODES, fetch_latest_week
+from src.observability import init_sentry
+
+init_sentry()
 
 engine = get_engine()
 
@@ -348,3 +351,15 @@ def health() -> HealthResponse:
     except Exception as exc:  # noqa: BLE001 -- health check reports any DB failure, doesn't need to discriminate
         db_status = f"error: {exc}"
     return HealthResponse(status="ok", database=db_status)
+
+
+@app.get(
+    "/debug/sentry",
+    tags=["ops"],
+    summary="Trigger a test error, to verify Sentry is capturing",
+    description="Raises a deliberate exception. Disabled (403) when ENV=production.",
+)
+def debug_sentry() -> None:
+    if os.environ.get("ENV") == "production":
+        raise HTTPException(status_code=403, detail="disabled in production")
+    raise RuntimeError("src/api.py /debug/sentry: deliberate test error for Sentry verification")

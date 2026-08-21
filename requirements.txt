@@ -12,3 +12,4 @@ matplotlib>=3.7
 prophet>=1.1
 fastapi>=0.110
 uvicorn[standard]>=0.29
+sentry-sdk>=2.0
