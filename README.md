@@ -1,17 +1,8 @@
 # Contagion Compass
-
-Public health agencies mostly still catch disease outbreaks the way they
-did a decade ago: someone looks at a chart, decides if it looks wrong, and
-writes it up. Contagion Compass automates the judgment call, not just the
-charting — an autonomous agent that monitors disease surveillance data,
+ an autonomous agent that monitors disease surveillance data,
 distinguishes meaningful anomalies from normal seasonal noise, investigates
 flagged anomalies further, and generates human-readable reports, with a
 full log of its own reasoning at every step.
-
-This isn't a dashboard bolted onto a cron job. It's a genuine agent loop:
-**perceive** (pull the latest data) → **reason** (decide if anything needs
-attention) → **act** (investigate further, forecast, report, alert) →
-**observe** (log the outcome) → repeat on a schedule.
 
 **Live dashboard:** [contagion-compass-dashboard.vercel.app](https://contagion-compass-dashboard.vercel.app)
 
@@ -108,13 +99,6 @@ underlying data — no extra model call, just different framing:
   explanation first, with the technical detail still available underneath,
   not hidden.
 
-Both include a generated trend chart. A flagged run can also trigger a
-Slack alert ([`src/notify.py`](src/notify.py)) — suppressed for repeat
-alerts on the same disease/region/metric within a configurable window
-unless severity actually escalates (a fresh not-flagged → flagged
-transition, or higher confidence than the last alert), so an ongoing
-anomaly doesn't spam the same channel every week with nothing new to say.
-
 ## REST API
 
 [`src/api.py`](src/api.py) (FastAPI) exposes the same agent/data layer
@@ -149,53 +133,9 @@ every divergence; results persist as JSON to `evaluation/` (gitignored —
 regenerate by rerunning) since replaying weeks means real, potentially
 rate-limited LLM calls, not something to redo just to re-read a result.
 
-This measures whether the LLM's judgment tracks the existing statistical
-convention — not whether either one is *correct* against real-world
-outcomes, since there's no ground-truth "was this an actual outbreak"
-label in the dataset. A genuine precision/recall evaluation would need
-that labeled ground truth (WHO Disease Outbreak News bulletins are a
-plausible future source, now that `check_outbreak_news` exists).
-
-## The `# ponytail:` convention
-
-Comments starting `# ponytail:` mark a deliberate simplification — a
-conscious choice to ship the simpler version of something now, with a
-one-line note on what's being deferred, why, and what would trigger
-revisiting it. A few examples from this codebase:
-
-```python
-# ponytail: single-provider-per-run; add per-call failover if Ollama is
-# ever observed dying mid-run in practice, not before.
-```
-```python
-# ponytail: retry only transient 5xx (e.g. "high demand") -- google-genai's
-# own internal retry gives up too fast for scheduled runs with no human
-# around to just rerun it manually.
-```
-```python
-# ponytail: synchronous and sequential -- fine for the handful of
-# baselined combinations today. A job queue is the right fix if this
-# grows enough to risk Render's free-tier request timeout.
-```
-
-The point isn't "cut corners" — it's making the tradeoff visible instead
-of either silently under-engineering (a real gap, no note) or
-over-engineering for a need that doesn't exist yet.
-
-## Dashboard & natural-language queries
-
-A public web dashboard (`dashboard/`, Next.js) lists every run — verdict,
-numbers, reasoning, second opinion, trend chart, and links to both
-reports. Structured run data comes from the REST API above; report/chart
-files are still served from S3 via short-lived presigned URLs, so the
-dashboard never holds AWS credentials with more than read access to a
-single prefix. A query box lets you ask ad hoc questions about run history
-in plain English ("how many runs have been flagged this month?"), answered
-by a Gemini call from a Vercel serverless function.
-
 ## Deployment
 
-Free-tier stack, no fixed-cost infrastructure, no Docker:
+Free-tier stack, no fixed-cost infrastructure:
 
 | Piece | Where | Config |
 |---|---|---|
@@ -223,17 +163,6 @@ a deliberate hybrid, not leftover scope: fully removing S3 would mean
 either dropping the downloadable reports/chart images from the dashboard
 or rebuilding them as on-the-fly rendering, real product work beyond a
 deployment migration.
-
-<details>
-<summary>Previous deployment: Docker + AWS (RDS, ECS, EventBridge, S3)</summary>
-
-The project originally ran containerized on AWS: RDS for the database, S3
-for reports/charts, and a scheduled ECS task (EventBridge cron, EC2
-launch type) running the agent weekly. Migrated off AWS (Phase 7) to avoid
-the AWS account's 12-month free-tier cliff and to drop Docker entirely —
-Render/Neon/GitHub Actions/Vercel are free indefinitely, not on a clock.
-
-</details>
 
 ## Tech stack
 
